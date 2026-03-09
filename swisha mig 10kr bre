@@ -1,0 +1,190 @@
+(function(){
+    document.querySelectorAll("#correctAnswerMenu").forEach(m => m.remove());
+
+    let questions = [];
+    document.querySelectorAll("script").forEach(s => {
+        if(s.innerText.includes('"qs":[')){
+            let match = s.innerText.match(/var v1\s*=\s*(\{.*?\});\s*var v2=/s);
+            if(match){
+                try{
+                    let v1 = JSON.parse(match[1]);
+                    questions = v1.qs || [];
+                } catch(e){
+                    console.error("Could not parse questions:", e);
+                }
+            }
+        }
+    });
+
+    // --- Skapa meny ---
+    let menu = document.createElement("div");
+    menu.id = "correctAnswerMenu";
+    menu.style.position = "fixed";
+    menu.style.top = "20px";
+    menu.style.right = "20px";
+    menu.style.width = "220px";
+    menu.style.height = "220px";
+    menu.style.background = "#555555";
+    menu.style.borderRadius = "15px";
+    menu.style.fontFamily = "Arial, sans-serif";
+    menu.style.color = "white";
+    menu.style.fontWeight = "bold";
+    menu.style.fontSize = "16px";
+    menu.style.display = "none";
+    menu.style.zIndex = "9999";
+    menu.style.textAlign = "center";
+    menu.style.padding = "15px";
+    menu.style.boxShadow = "0 0 20px rgba(0,0,0,0.5)";
+    menu.style.cursor = "pointer";
+    menu.style.transition = "transform 0.4s ease, opacity 0.3s ease";
+    menu.style.clipPath = "polygon(0 0, 80% 0, 100% 50%, 80% 100%, 0 100%)";
+
+    menu.innerHTML = `
+        <div style="font-size:20px;margin-top:10px;">Correct Answer</div>
+        <div id="answerBox" style="margin-top:15px;font-size:22px;font-weight:bold;color:red;text-shadow:0 0 5px #fff,0 0 10px red;"></div>
+        <div style="margin-top:10px;font-size:12px;color:#ddd;opacity:0.8;">Press X to toggle menu, Z to auto-fill,<br>&lt; for overlay, click answer to copy</div>
+        <hr style="margin:10px 0;border-color:#777;">
+        <button id="settingsBtn" style="
+            background:#777;
+            border:none;
+            border-radius:5px;
+            color:white;
+            padding:5px 10px;
+            cursor:pointer;
+            font-weight:bold;
+            margin-top:5px;
+        ">Settings</button>
+        <div id="settingsPanel" style="display:none;margin-top:10px;text-align:left;font-size:14px;color:#ccc;">
+            <label>Background color: <input type="color" id="bgColor" value="#555555"></label><br>
+            <label>Font family: 
+                <select id="fontSelect">
+                    <option value="Arial, sans-serif">Arial</option>
+                    <option value="Verdana, sans-serif">Verdana</option>
+                    <option value="Courier New, monospace">Courier New</option>
+                    <option value="Georgia, serif">Georgia</option>
+                    <option value="Tahoma, sans-serif">Tahoma</option>
+                </select>
+            </label>
+        </div>
+    `;
+    document.body.appendChild(menu);
+
+    // --- Overlay för < ---
+    let overlay = document.createElement("div");
+    overlay.id = "answerOverlay";
+    overlay.style.position = "absolute";
+    overlay.style.pointerEvents = "none";
+    overlay.style.opacity = "0.5";
+    overlay.style.color = "red";
+    overlay.style.fontWeight = "bold";
+    overlay.style.fontSize = "16px";
+    overlay.style.display = "none";
+    overlay.style.alignItems = "center";
+    overlay.style.justifyContent = "center";
+    overlay.style.textAlign = "center";
+    overlay.style.border = "2px solid red";
+    overlay.style.borderRadius = "5px";
+    overlay.style.backgroundColor = "rgba(255,0,0,0.1)";
+    overlay.style.zIndex = 9998;
+    document.body.appendChild(overlay);
+
+    // --- Settings toggle ---
+    document.getElementById("settingsBtn").addEventListener("click", () => {
+        let panel = document.getElementById("settingsPanel");
+        panel.style.display = panel.style.display === "none" ? "block" : "none";
+    });
+
+    // --- Settings events ---
+    document.getElementById("bgColor").addEventListener("input", e => {
+        let val = e.target.value;
+        if(/^#([0-9A-Fa-f]{3}){1,2}$/.test(val)){
+            if(val.length === 4){
+                val = "#" + val[1]+val[1] + val[2]+val[2] + val[3]+val[3];
+            }
+            menu.style.background = val;
+        }
+    });
+
+    document.getElementById("fontSelect").addEventListener("change", e => {
+        menu.style.fontFamily = e.target.value;
+    });
+
+    document.addEventListener("keydown", e => {
+        let answerBox = document.getElementById("answerBox");
+        let inputField = document.querySelector("#exerc-input input");
+
+        // Toggle menu
+        if(e.key.toLowerCase() === "x"){
+            menu.style.display = menu.style.display === "none" ? "block" : "none";
+            menu.style.transform = "scale(1.05)";
+            setTimeout(()=>menu.style.transform="scale(1)",300);
+        }
+
+        // Auto-fill answer without typing "z"
+        if(e.key.toLowerCase() === "z" && inputField && answerBox.innerText && answerBox.innerText !== "Answer not found"){
+            e.preventDefault();
+            inputField.value = answerBox.innerText;
+            inputField.dispatchEvent(new Event('input',{bubbles:true}));
+        }
+
+        // < visar overlay
+        if(e.key === '<' && inputField && answerBox.innerText && answerBox.innerText !== "Answer not found"){
+            e.preventDefault();
+            const rect = inputField.getBoundingClientRect();
+            overlay.style.top = rect.top + window.scrollY + "px";
+            overlay.style.left = rect.left + "px";
+            overlay.style.width = rect.width + "px";
+            overlay.style.height = rect.height + "px";
+            overlay.textContent = answerBox.innerText;
+            overlay.style.display = "flex";
+        }
+    });
+
+    document.addEventListener("keyup", e => {
+        if(e.key === '<') overlay.style.display = "none";
+    });
+
+    menu.addEventListener("click", () => {
+        let answerText = document.getElementById("answerBox").innerText;
+        navigator.clipboard.writeText(answerText);
+    });
+
+    function normalize(str){
+        return str.toLowerCase().replace(/\s+/g,"").normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+    }
+
+    function showAnswer(){
+        if(!questions || questions.length === 0) return;
+
+        let questionSpan = document.querySelector("#exerc-question .form-control");
+        if(!questionSpan) return;
+
+        let questionText = normalize(questionSpan.innerText);
+        let found = false;
+
+        for(let q of questions){
+            if(!q.d) continue;
+
+            let engList = q.d[0] ? q.d[0].map(w=>normalize(w)).join(",") : "";
+            let sweList = q.d[1] ? q.d[1].map(w=>normalize(w)).join(",") : "";
+
+            if(questionText === engList || questionText === sweList || sweList.includes(questionText)){
+                document.getElementById("answerBox").innerText = q.d[0].join(", "); 
+                found = true;
+                break;
+            }
+        }
+
+        if(!found){
+            document.getElementById("answerBox").innerText = "Answer not found";
+        }
+    }
+
+    setInterval(showAnswer, 300);
+
+    window.addEventListener("scroll", () => {
+        let scrollTop = window.scrollY || document.documentElement.scrollTop;
+        menu.style.top = 20 + scrollTop + "px";
+    });
+
+})();
